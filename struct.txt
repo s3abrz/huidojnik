@@ -1,0 +1,5 @@
+/your-web-folder/
+├── bot.html
+├── style.css (опционально)
+└── js/
+    └── script.js (опционально)
