@@ -290,104 +290,49 @@
             });
         }
 
-        // Отправка данных генерации
-        async function submitGenerateForm() {
-            const prompt = document.getElementById('generate-prompt').value;
-            const imageFile = document.getElementById('generate-image').files[0];
-            
-            if (!prompt.trim()) {
-                alert('Пожалуйста, введите текст запроса');
-                return;
-            }
+       // Отправка данных генерации
+async function submitGenerateForm() {
+    const prompt = document.getElementById('generate-prompt').value;
+    const imageFile = document.getElementById('generate-image').files[0];
+    
+    if (!prompt.trim()) {
+        alert('Пожалуйста, введите текст запроса');
+        return;
+    }
 
-            showLoading(true);
+    showLoading(true);
 
-            try {
-                const data = {
-                    action: 'generate',
-                    prompt: prompt.trim(),
-                    user_id: tg.initDataUnsafe.user?.id,
-                    chat_id: tg.initDataUnsafe.chat?.id
-                };
+    try {
+        const data = {
+            action: 'generate',
+            prompt: prompt.trim(),
+            user_id: tg.initDataUnsafe.user?.id,
+            chat_id: tg.initDataUnsafe.user?.id // Используем user_id как chat_id для WebApp
+        };
 
-                // Если есть изображение, добавляем его как base64
-                if (imageFile) {
-                    data.image = await readFileAsBase64(imageFile);
-                    data.image_name = imageFile.name;
-                    data.image_type = imageFile.type;
-                }
-
-                // Отправка данных в бота
-                tg.sendData(JSON.stringify(data));
-                
-                // Показываем сообщение об успехе
-                setTimeout(() => {
-                    showLoading(false);
-                    alert('Запрос отправлен! Ожидайте результат.');
-                    tg.close();
-                }, 1000);
-
-            } catch (error) {
-                showLoading(false);
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при отправке запроса');
-            }
+        // Если есть изображение, добавляем его как base64
+        if (imageFile) {
+            data.image = await readFileAsBase64(imageFile);
+            data.image_name = imageFile.name;
+            data.image_type = imageFile.type;
         }
 
-        // Отправка данных редактирования
-        async function submitEditForm() {
-            const prompt = document.getElementById('edit-prompt').value;
-            const originalImage = document.getElementById('edit-original').files[0];
-            const maskImage = document.getElementById('edit-mask').files[0];
-            
-            if (!prompt.trim()) {
-                alert('Пожалуйста, введите текст запроса');
-                return;
-            }
-            
-            if (!originalImage) {
-                alert('Пожалуйста, загрузите исходное изображение');
-                return;
-            }
+        // Отправка данных в бота
+        tg.sendData(JSON.stringify(data));
+        
+        // Показываем сообщение об успехе
+        setTimeout(() => {
+            showLoading(false);
+            alert('Запрос отправлен! Ожидайте результат в основном чате с ботом.');
+            tg.close();
+        }, 1000);
 
-            showLoading(true);
-
-            try {
-                const data = {
-                    action: 'edit',
-                    prompt: prompt.trim(),
-                    user_id: tg.initDataUnsafe.user?.id,
-                    chat_id: tg.initDataUnsafe.chat?.id
-                };
-
-                // Добавляем исходное изображение
-                data.original_image = await readFileAsBase64(originalImage);
-                data.original_image_name = originalImage.name;
-                data.original_image_type = originalImage.type;
-
-                // Если есть маска, добавляем её
-                if (maskImage) {
-                    data.mask_image = await readFileAsBase64(maskImage);
-                    data.mask_image_name = maskImage.name;
-                    data.mask_image_type = maskImage.type;
-                }
-
-                // Отправка данных в бота
-                tg.sendData(JSON.stringify(data));
-                
-                // Показываем сообщение об успехе
-                setTimeout(() => {
-                    showLoading(false);
-                    alert('Запрос отправлен! Ожидайте результат.');
-                    tg.close();
-                }, 1000);
-
-            } catch (error) {
-                showLoading(false);
-                console.error('Ошибка:', error);
-                alert('Произошла ошибка при отправке запроса');
-            }
-        }
+    } catch (error) {
+        showLoading(false);
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при отправке запроса');
+    }
+}
     </script>
 </body>
 </html>
