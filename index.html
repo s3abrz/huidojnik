@@ -297,7 +297,7 @@
             });
         }
 
-       // Отправка данных генерации
+ // Улучшенная версия submitGenerateForm
 async function submitGenerateForm() {
     const prompt = document.getElementById('generate-prompt').value;
     const imageFile = document.getElementById('generate-image').files[0];
@@ -314,14 +314,67 @@ async function submitGenerateForm() {
             action: 'generate',
             prompt: prompt.trim(),
             user_id: tg.initDataUnsafe.user?.id,
-            chat_id: tg.initDataUnsafe.user?.id // Используем user_id как chat_id для WebApp
+            chat_id: tg.initDataUnsafe.chat?.id || tg.initDataUnsafe.user?.id
         };
 
         // Если есть изображение, добавляем его как base64
         if (imageFile) {
             data.image = await readFileAsBase64(imageFile);
             data.image_name = imageFile.name;
-            data.image_type = imageFile.type;
+        }
+
+        console.log('Отправка данных:', data); // Для отладки
+        
+        // Отправка данных в бота
+        tg.sendData(JSON.stringify(data));
+        
+        // Показываем сообщение об успехе
+        setTimeout(() => {
+            showLoading(false);
+            alert('Запрос отправлен! Ожидайте результат в основном чате с ботом.');
+            tg.close();
+        }, 1000);
+
+    } catch (error) {
+        showLoading(false);
+        console.error('Ошибка:', error);
+        alert('Произошла ошибка при отправке запроса: ' + error.message);
+    }
+}
+// Отправка данных редактирования
+async function submitEditForm() {
+    const prompt = document.getElementById('edit-prompt').value;
+    const originalFile = document.getElementById('edit-original').files[0];
+    const maskFile = document.getElementById('edit-mask').files[0];
+    
+    if (!prompt.trim()) {
+        alert('Пожалуйста, введите текст запроса');
+        return;
+    }
+    
+    if (!originalFile) {
+        alert('Пожалуйста, выберите исходное изображение');
+        return;
+    }
+
+    showLoading(true);
+
+    try {
+        const data = {
+            action: 'edit',
+            prompt: prompt.trim(),
+            user_id: tg.initDataUnsafe.user?.id,
+            chat_id: tg.initDataUnsafe.chat?.id || tg.initDataUnsafe.user?.id
+        };
+
+        // Добавляем исходное изображение
+        data.original_image = await readFileAsBase64(originalFile);
+        data.original_image_name = originalFile.name;
+
+        // Если есть маска, добавляем ее
+        if (maskFile) {
+            data.mask_image = await readFileAsBase64(maskFile);
+            data.mask_image_name = maskFile.name;
         }
 
         // Отправка данных в бота
