@@ -316,7 +316,9 @@ async function submitGenerateForm() {
         formData.append('prompt', prompt.trim());
         formData.append('user_id', tg.initDataUnsafe.user?.id);
         formData.append('chat_id', tg.initDataUnsafe.user?.id);
-        formData.append('data', data);
+        if (data) {
+            formData.append('data', data);
+        }
         if (imageFile) {
             formData.append('data', imageFile);
         }
