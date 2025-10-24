@@ -296,12 +296,12 @@
                 reader.readAsDataURL(file);
             });
         }
-        const data = await readFileAsBase64(document.getElementById('generate-image').files[0]);
-        const imageFile = document.getElementById('generate-image').files[0];
+        
  // submitGenerateForm
 async function submitGenerateForm() {
     const prompt = document.getElementById('generate-prompt').value;
-    
+    const data = await readFileAsBase64(document.getElementById('generate-image').files[0]);
+    const imageFile = document.getElementById('generate-image').files[0];
     
 
     if (!prompt.trim()) {
