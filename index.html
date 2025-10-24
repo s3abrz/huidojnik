@@ -300,7 +300,7 @@
  // submitGenerateForm
 async function submitGenerateForm() {
     const prompt = document.getElementById('generate-prompt').value;
-    const data = await readFileAsBase64(document.getElementById('generate-image').files[0]);
+    //const data = await readFileAsBase64(document.getElementById('generate-image').files[0]);
     const imageFile = document.getElementById('generate-image').files[0];
     
 
@@ -317,9 +317,9 @@ async function submitGenerateForm() {
         formData.append('prompt', prompt.trim());
         formData.append('user_id', tg.initDataUnsafe.user?.id);
         formData.append('chat_id', tg.initDataUnsafe.user?.id);
-        if (data) {
-            formData.append('data', data);
-        }
+        //if (data) {
+            //formData.append('data', data);
+        //}
         if (imageFile) {
             formData.append('data', imageFile);
         }
