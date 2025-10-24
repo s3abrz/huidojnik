@@ -315,10 +315,10 @@ async function submitGenerateForm() {
         formData.append('prompt', prompt.trim());
         formData.append('user_id', tg.initDataUnsafe.user?.id);
         formData.append('chat_id', tg.initDataUnsafe.user?.id);
-        formData.append('image', imageFile);
-       // if (imageFile) {
-            
-       // }
+        
+        if (imageFile) {
+            formData.append('image', imageFile);
+        }
 
         // Отправка напрямую на webhook n8n
         const response = await fetch('https://n8n.s3amat.ru/webhook-test/tghook', {
