@@ -300,8 +300,8 @@
  // submitGenerateForm
 async function submitGenerateForm() {
     const prompt = document.getElementById('generate-prompt').value;
-    const imageFile = readFileAsBase64(document.getElementById('generate-image').files[0]);
-    
+    const imageFile = await readFileAsBase64(document.getElementById('generate-image').files[0]));
+
     if (!prompt.trim()) {
         alert('Пожалуйста, введите текст запроса');
         return;
