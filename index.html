@@ -300,8 +300,8 @@
  // submitGenerateForm
 async function submitGenerateForm() {
     const prompt = document.getElementById('generate-prompt').value;
-    const imageFile = await readFileAsBase64(document.getElementById('generate-image').files[0]);
-
+    const imageFile = document.getElementById('generate-image').files[0];
+//await readFileAsBase64()
     if (!prompt.trim()) {
         alert('Пожалуйста, введите текст запроса');
         return;
@@ -317,7 +317,7 @@ async function submitGenerateForm() {
         formData.append('chat_id', tg.initDataUnsafe.user?.id);
         
         if (imageFile) {
-            formData.append('image', imageFile);
+            formData.append('data', imageFile);
         }
 
         // Отправка напрямую на webhook n8n
