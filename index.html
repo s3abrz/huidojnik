@@ -40,6 +40,7 @@
             padding: 16px;
             max-width: 600px;
             margin: 0 auto;
+            min-height: 100vh;
         }
 
         .header {
@@ -74,6 +75,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--secondary-bg);
         }
 
         .tabs {
@@ -87,11 +94,16 @@
             cursor: pointer;
             border-bottom: 2px solid transparent;
             transition: all 0.2s;
+            user-select: none;
         }
 
         .tab.active {
             border-bottom: 2px solid var(--accent-color);
             color: var(--accent-color);
+        }
+
+        .tab:hover {
+            background-color: var(--secondary-bg);
         }
 
         .form-container {
@@ -153,6 +165,7 @@
             background-color: var(--secondary-bg);
             cursor: pointer;
             transition: all 0.2s;
+            user-select: none;
         }
 
         .file-upload-label:hover {
@@ -169,11 +182,28 @@
             border-radius: 8px;
             overflow: hidden;
             margin-bottom: 16px;
+            background-color: var(--secondary-bg);
+            position: relative;
+            width: 100%;
+            height: 300px;
         }
 
-        canvas {
-            display: block;
-            background-color: var(--secondary-bg);
+        #canvasBackground {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        #maskCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             cursor: crosshair;
         }
 
@@ -181,6 +211,7 @@
             display: flex;
             gap: 8px;
             margin-bottom: 16px;
+            flex-wrap: wrap;
         }
 
         .canvas-btn {
@@ -192,6 +223,7 @@
             cursor: pointer;
             font-size: 14px;
             transition: all 0.2s;
+            user-select: none;
         }
 
         .canvas-btn:hover {
@@ -215,6 +247,7 @@
             font-weight: 500;
             cursor: pointer;
             transition: background-color 0.2s;
+            user-select: none;
         }
 
         .submit-btn:hover {
@@ -237,6 +270,31 @@
             border-radius: 8px;
             border: 1px solid var(--border-color);
         }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid var(--secondary-bg);
+            border-top: 4px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -245,12 +303,12 @@
             <span class="logo-icon">🎨</span>
             <span>Hu*dojnik</span>
         </div>
-        <button class="theme-toggle" id="themeToggle">🌙</button>
+        <button class="theme-toggle" id="themeToggle" aria-label="Переключить тему">🌙</button>
     </div>
 
     <div class="tabs">
-        <div class="tab active" data-tab="generate">Генерация</div>
-        <div class="tab" data-tab="edit">Редактирование</div>
+        <div class="tab active" data-tab="generate" role="button" tabindex="0">Генерация</div>
+        <div class="tab" data-tab="edit" role="button" tabindex="0">Редактирование</div>
     </div>
 
     <!-- Форма генерации -->
@@ -307,244 +365,466 @@
         </div>
         
         <div class="form-group">
-            <label>Или нарисуйте маску</label>
+            <label>Или нарисуйте маску поверх изображения</label>
             <div class="canvas-container">
-                <canvas id="maskCanvas" width="512" height="512"></canvas>
+                <img id="canvasBackground">
+                <canvas id="maskCanvas"></canvas>
             </div>
             <div class="canvas-controls">
                 <button class="canvas-btn active" data-tool="brush">Кисть</button>
                 <button class="canvas-btn" data-tool="eraser">Ластик</button>
-                <button class="canvas-btn" id="clearCanvas">Очистить</button>
+                <button class="canvas-btn" id="clearCanvas">Очистить маску</button>
             </div>
         </div>
         
         <button class="submit-btn" id="editSubmit">Редактировать изображение</button>
     </div>
 
+    <div class="loading" id="loadingIndicator">
+        <div class="spinner"></div>
+        <p>Обработка запроса...</p>
+    </div>
+
     <script>
-        // Переключение темы
-        const themeToggle = document.getElementById('themeToggle');
-        const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
-        
-        // Проверяем сохраненную тему или системные настройки
-        const currentTheme = localStorage.getItem('theme') || 
-                            (prefersDarkScheme.matches ? 'dark' : 'light');
-        
-        if (currentTheme === 'dark') {
-            document.body.setAttribute('data-theme', 'dark');
-            themeToggle.textContent = '☀️';
-        } else {
-            document.body.removeAttribute('data-theme');
-            themeToggle.textContent = '🌙';
-        }
-        
-        themeToggle.addEventListener('click', () => {
-            if (document.body.hasAttribute('data-theme')) {
-                document.body.removeAttribute('data-theme');
-                localStorage.setItem('theme', 'light');
-                themeToggle.textContent = '🌙';
-            } else {
+        // Конфигурация приложения
+        const CONFIG = {
+            // ЗАМЕНИТЕ НА ВАШ ВЕБХУК
+            webhookUrl: 'https://n8n.s3amat.ru/webhook-test/tghook',
+            
+            // Настройки canvas
+            canvas: {
+                brushColor: 'rgba(255, 255, 255, 0.7)',
+                brushSize: 20,
+                eraserSize: 20
+            }
+        };
+
+        // Ждем полной загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing app...');
+            
+            // Глобальная переменная для хранения chat_id
+            let currentChatId = null;
+            
+            // Функция для получения chat_id из Telegram Web App
+            function initTelegramWebApp() {
+                // Проверяем, запущено ли приложение в Telegram
+                if (window.Telegram && Telegram.WebApp) {
+                    try {
+                        // Инициализируем Telegram Web App
+                        Telegram.WebApp.ready();
+                        
+                        // Получаем данные пользователя/чата
+                        const initData = Telegram.WebApp.initData || '';
+                        const initDataUnsafe = Telegram.WebApp.initDataUnsafe || {};
+                        
+                        // Пытаемся извлечь chat_id из различных источников
+                        if (initDataUnsafe.chat) {
+                            currentChatId = initDataUnsafe.chat.id;
+                        } else if (initDataUnsafe.user) {
+                            currentChatId = initDataUnsafe.user.id;
+                        } else if (initData) {
+                            // Парсим initData строку для извлечения chat_id
+                            const params = new URLSearchParams(initData);
+                            const chatParam = params.get('chat');
+                            if (chatParam) {
+                                try {
+                                    const chatData = JSON.parse(chatParam);
+                                    currentChatId = chatData.id;
+                                } catch (e) {
+                                    console.error('Error parsing chat data:', e);
+                                }
+                            }
+                        }
+                        
+                        // Если chat_id не найден, используем user id как fallback
+                        if (!currentChatId && initDataUnsafe.user) {
+                            currentChatId = initDataUnsafe.user.id;
+                        }
+                        
+                        console.log('Chat ID detected:', currentChatId);
+                        
+                        // Расширяем приложение на весь экран (опционально)
+                        Telegram.WebApp.expand();
+                        
+                    } catch (error) {
+                        console.error('Error initializing Telegram Web App:', error);
+                    }
+                } else {
+                    // Режим разработки - используем параметр URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    currentChatId = urlParams.get('chat_id') || 'dev_chat_id';
+                    
+                    console.log('Running in development mode. Chat ID:', currentChatId);
+                }
+            }
+            
+            // Инициализируем Telegram Web App при загрузке
+            initTelegramWebApp();
+            
+            // Переключение темы
+            const themeToggle = document.getElementById('themeToggle');
+            const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+            
+            // Проверяем сохраненную тему или системные настройки
+            const currentTheme = localStorage.getItem('theme') || 
+                                (prefersDarkScheme.matches ? 'dark' : 'light');
+            
+            if (currentTheme === 'dark') {
                 document.body.setAttribute('data-theme', 'dark');
-                localStorage.setItem('theme', 'dark');
                 themeToggle.textContent = '☀️';
-            }
-        });
-
-        // Переключение между вкладками
-        const tabs = document.querySelectorAll('.tab');
-        const forms = document.querySelectorAll('.form-container');
-        
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabName = tab.getAttribute('data-tab');
-                
-                // Активируем выбранную вкладку
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                // Показываем соответствующую форму
-                forms.forEach(form => {
-                    form.classList.remove('active');
-                    if (form.id === `${tabName}Form`) {
-                        form.classList.add('active');
-                    }
-                });
-            });
-        });
-
-        // Предпросмотр загруженных изображений
-        function setupImagePreview(inputId, previewId) {
-            const input = document.getElementById(inputId);
-            const preview = document.getElementById(previewId);
-            
-            input.addEventListener('change', function() {
-                if (this.files && this.files[0]) {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
-                    }
-                    
-                    reader.readAsDataURL(this.files[0]);
-                } else {
-                    preview.innerHTML = '';
-                }
-            });
-        }
-        
-        setupImagePreview('generateReference', 'generatePreview');
-        setupImagePreview('editImage', 'editImagePreview');
-        setupImagePreview('editMask', 'editMaskPreview');
-
-        // Логика рисования на canvas
-        const canvas = document.getElementById('maskCanvas');
-        const ctx = canvas.getContext('2d');
-        const clearBtn = document.getElementById('clearCanvas');
-        const toolButtons = document.querySelectorAll('.canvas-btn[data-tool]');
-        
-        let isDrawing = false;
-        let currentTool = 'brush';
-        
-        // Настройка canvas
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 20;
-        ctx.lineCap = 'round';
-        
-        // Функции для рисования
-        function startDrawing(e) {
-            isDrawing = true;
-            draw(e);
-        }
-        
-        function stopDrawing() {
-            isDrawing = false;
-            ctx.beginPath();
-        }
-        
-        function draw(e) {
-            if (!isDrawing) return;
-            
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            ctx.lineTo(x, y);
-            
-            if (currentTool === 'brush') {
-                ctx.strokeStyle = 'white';
-                ctx.stroke();
-            } else if (currentTool === 'eraser') {
-                ctx.strokeStyle = 'black';
-                ctx.stroke();
-            }
-            
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-        }
-        
-        // События canvas
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-        
-        // Очистка canvas
-        clearBtn.addEventListener('click', () => {
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        });
-        
-        // Переключение инструментов
-        toolButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                toolButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentTool = btn.getAttribute('data-tool');
-            });
-        });
-
-        // Отправка форм на вебхук
-        const generateSubmit = document.getElementById('generateSubmit');
-        const editSubmit = document.getElementById('editSubmit');
-        const webhookUrl = 'https://n8n.s3amat.ru/webhook-test/tghook'; // Замените на ваш вебхук
-        
-        generateSubmit.addEventListener('click', () => {
-            const prompt = document.getElementById('generatePrompt').value;
-            const referenceFile = document.getElementById('generateReference').files[0];
-            
-            if (!prompt) {
-                alert('Пожалуйста, введите промпт');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('mode', 'generate');
-            formData.append('prompt', prompt);
-            
-            if (referenceFile) {
-                formData.append('data', referenceFile);
-            }
-            
-            sendToWebhook(formData);
-        });
-        
-        editSubmit.addEventListener('click', () => {
-            const prompt = document.getElementById('editPrompt').value;
-            const imageFile = document.getElementById('editImage').files[0];
-            const maskFile = document.getElementById('editMask').files[0];
-            
-            if (!prompt || !imageFile) {
-                alert('Пожалуйста, введите промпт и загрузите изображение для редактирования');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('mode', 'edit');
-            formData.append('prompt', prompt);
-            formData.append('data', imageFile);
-            
-            if (maskFile) {
-                formData.append('mask', maskFile);
             } else {
-                // Если маска не загружена, используем нарисованную на canvas
-                canvas.toBlob(blob => {
-                    formData.append('mask', blob, 'mask.png');
-                    sendToWebhook(formData);
-                });
-                return;
+                document.body.removeAttribute('data-theme');
+                themeToggle.textContent = '🌙';
             }
             
-            sendToWebhook(formData);
-        });
-        
-        function sendToWebhook(formData) {
-            // В реальном приложении здесь будет отправка на ваш вебхук
-            console.log('Отправка данных на вебхук:', formData);
-            
-            // Пример отправки с помощью fetch
-            
-            fetch(webhookUrl, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (response.ok) {
-                    alert('Запрос отправлен успешно!');
+            themeToggle.addEventListener('click', () => {
+                if (document.body.hasAttribute('data-theme')) {
+                    document.body.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    themeToggle.textContent = '🌙';
                 } else {
-                    alert('Ошибка при отправке запроса');
+                    document.body.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    themeToggle.textContent = '☀️';
                 }
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                alert('Ошибка при отправке запроса');
             });
+
+            // Переключение между вкладками
+            const tabs = document.querySelectorAll('.tab');
+            const forms = document.querySelectorAll('.form-container');
             
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabName = tab.getAttribute('data-tab');
+                    
+                    // Активируем выбранную вкладку
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Показываем соответствующую форму
+                    forms.forEach(form => {
+                        form.classList.remove('active');
+                        if (form.id === `${tabName}Form`) {
+                            form.classList.add('active');
+                        }
+                    });
+                });
+                
+                // Добавляем поддержку клавиатуры для доступности
+                tab.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        tab.click();
+                    }
+                });
+            });
+
+            // Предпросмотр загруженных изображений
+            function setupImagePreview(inputId, previewId) {
+                const input = document.getElementById(inputId);
+                const preview = document.getElementById(previewId);
+                
+                if (!input || !preview) {
+                    console.error(`Элементы не найдены: ${inputId} или ${previewId}`);
+                    return;
+                }
+                
+                input.addEventListener('change', function() {
+                    if (this.files && this.files[0]) {
+                        const reader = new FileReader();
+                        
+                        reader.onload = function(e) {
+                            preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+                            
+                            // Если это изображение для редактирования, устанавливаем его как фон canvas
+                            if (inputId === 'editImage') {
+                                setCanvasBackground(e.target.result);
+                            }
+                        }
+                        
+                        reader.onerror = function() {
+                            console.error('Ошибка при чтении файла');
+                            preview.innerHTML = '<p style="color: red;">Ошибка загрузки изображения</p>';
+                        }
+                        
+                        reader.readAsDataURL(this.files[0]);
+                    } else {
+                        preview.innerHTML = '';
+                        
+                        // Если это изображение для редактирования, очищаем фон canvas
+                        if (inputId === 'editImage') {
+                            clearCanvasBackground();
+                        }
+                    }
+                });
+            }
             
-            // Для демонстрации просто показываем сообщение
-            alert('Запрос отправлен!');
-        }
+            setupImagePreview('generateReference', 'generatePreview');
+            setupImagePreview('editImage', 'editImagePreview');
+            setupImagePreview('editMask', 'editMaskPreview');
+
+            // Логика работы с canvas
+            const canvas = document.getElementById('maskCanvas');
+            const canvasBackground = document.getElementById('canvasBackground');
+            
+            if (!canvas) {
+                console.error('Canvas не найден');
+            } else {
+                const ctx = canvas.getContext('2d');
+                const clearBtn = document.getElementById('clearCanvas');
+                const toolButtons = document.querySelectorAll('.canvas-btn[data-tool]');
+                
+                let isDrawing = false;
+                let currentTool = 'brush';
+                let lastX = 0;
+                let lastY = 0;
+                
+                // Инициализация canvas
+                function initCanvas() {
+                    // Устанавливаем размер canvas равным размеру контейнера
+                    const container = canvas.parentElement;
+                    canvas.width = container.clientWidth;
+                    canvas.height = container.clientHeight;
+                    
+                    // Очищаем canvas
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Устанавливаем прозрачный фон для маски
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    ctx.lineWidth = CONFIG.canvas.brushSize;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.globalCompositeOperation = 'source-over';
+                }
+                
+                initCanvas();
+                
+                // Установка фона для canvas
+                function setCanvasBackground(imageSrc) {
+                    canvasBackground.src = imageSrc;
+                    canvasBackground.style.display = 'block';
+                    
+                    // Переинициализируем canvas для нового размера
+                    initCanvas();
+                }
+                
+                // Очистка фона canvas
+                function clearCanvasBackground() {
+                    canvasBackground.style.display = 'none';
+                    canvasBackground.src = '';
+                    initCanvas();
+                }
+                
+                // Функции для рисования
+                function startDrawing(e) {
+                    isDrawing = true;
+                    const rect = canvas.getBoundingClientRect();
+                    lastX = e.clientX - rect.left;
+                    lastY = e.clientY - rect.top;
+                    
+                    // Начинаем новый путь
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                }
+                
+                function stopDrawing() {
+                    isDrawing = false;
+                    ctx.beginPath();
+                }
+                
+                function draw(e) {
+                    if (!isDrawing) return;
+                    
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    
+                    // Устанавливаем параметры рисования в зависимости от инструмента
+                    if (currentTool === 'brush') {
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = CONFIG.canvas.brushColor;
+                        ctx.lineWidth = CONFIG.canvas.brushSize;
+                    } else if (currentTool === 'eraser') {
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.strokeStyle = 'rgba(0,0,0,1)';
+                        ctx.lineWidth = CONFIG.canvas.eraserSize;
+                    }
+                    
+                    // Рисуем линию
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    
+                    // Обновляем последние координаты
+                    lastX = x;
+                    lastY = y;
+                }
+                
+                // События canvas
+                canvas.addEventListener('mousedown', startDrawing);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', stopDrawing);
+                canvas.addEventListener('mouseout', stopDrawing);
+                
+                // Очистка маски
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => {
+                        initCanvas();
+                    });
+                }
+                
+                // Переключение инструментов
+                toolButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        toolButtons.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        currentTool = btn.getAttribute('data-tool');
+                    });
+                });
+                
+                // Обработка изменения размера окна
+                window.addEventListener('resize', () => {
+                    initCanvas();
+                });
+            }
+
+            // Отправка форм на вебхук
+            const generateSubmit = document.getElementById('generateSubmit');
+            const editSubmit = document.getElementById('editSubmit');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            
+            function showLoading() {
+                if (loadingIndicator) {
+                    loadingIndicator.classList.add('active');
+                }
+            }
+            
+            function hideLoading() {
+                if (loadingIndicator) {
+                    loadingIndicator.classList.remove('active');
+                }
+            }
+            
+            function showMessage(message, isError = false) {
+                if (isError) {
+                    alert(`Ошибка: ${message}`);
+                } else {
+                    alert(message);
+                }
+            }
+            
+            // Функция для отправки данных
+            function sendToWebhook(formData, mode) {
+                // Добавляем chat_id к данным формы
+                if (currentChatId) {
+                    formData.append('chat_id', currentChatId);
+                } else {
+                    showMessage('Chat ID не определен. Невозможно отправить запрос.', true);
+                    return;
+                }
+                
+                // Добавляем режим работы
+                formData.append('mode', mode);
+                
+                showLoading();
+                
+                // Отправка на вебхук
+                console.log('Отправка данных на вебхук:', CONFIG.webhookUrl, {
+                    chat_id: currentChatId,
+                    mode: mode
+                });
+                
+                // Реальная отправка на вебхук
+                fetch(CONFIG.webhookUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    hideLoading();
+                    if (response.ok) {
+                        showMessage('Запрос успешно отправлен!');
+                    } else {
+                        showMessage(`Ошибка сервера: ${response.status}`, true);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Ошибка при отправке:', error);
+                    showMessage('Ошибка при отправке запроса', true);
+                });
+            }
+            
+            if (generateSubmit) {
+                generateSubmit.addEventListener('click', () => {
+                    const prompt = document.getElementById('generatePrompt').value;
+                    const referenceFile = document.getElementById('generateReference').files[0];
+                    
+                    if (!prompt) {
+                        showMessage('Пожалуйста, введите промпт', true);
+                        return;
+                    }
+                    
+                    if (!currentChatId) {
+                        showMessage('Chat ID не определен. Невозможно отправить запрос.', true);
+                        return;
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('prompt', prompt);
+                    
+                    if (referenceFile) {
+                        formData.append('data', referenceFile);
+                    }
+                    
+                    sendToWebhook(formData, 'generate');
+                });
+            }
+            
+            if (editSubmit) {
+                editSubmit.addEventListener('click', () => {
+                    const prompt = document.getElementById('editPrompt').value;
+                    const imageFile = document.getElementById('editImage').files[0];
+                    const maskFile = document.getElementById('editMask').files[0];
+                    
+                    if (!prompt || !imageFile) {
+                        showMessage('Пожалуйста, введите промпт и загрузите изображение для редактирования', true);
+                        return;
+                    }
+                    
+                    if (!currentChatId) {
+                        showMessage('Chat ID не определен. Невозможно отправить запрос.', true);
+                        return;
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('prompt', prompt);
+                    formData.append('data', imageFile);
+                    
+                    if (maskFile) {
+                        formData.append('mask', maskFile);
+                        sendToWebhook(formData, 'edit');
+                    } else {
+                        // Если маска не загружена, используем нарисованную на canvas
+                        if (canvas) {
+                            canvas.toBlob(blob => {
+                                if (blob) {
+                                    formData.append('mask', blob, 'mask.png');
+                                    sendToWebhook(formData, 'edit');
+                                } else {
+                                    showMessage('Ошибка при создании маски', true);
+                                }
+                            });
+                        } else {
+                            sendToWebhook(formData, 'edit');
+                        }
+                    }
+                });
+            }
+            
+            console.log('App initialized successfully');
+        });
     </script>
 </body>
 </html>
-
